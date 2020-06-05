@@ -1,0 +1,167 @@
+syntax = "proto2";
+package tencent.media_gateway.access;
+
+option java_package = "com.bcq.protobuf";
+option java_outer_classname = "MideaCmd";
+//Protobuf组包规则：
+//cStx+dwHeadLen+dwBodyLen+MediaGatewayHead+MediaGatewayBodyReq/MediaGatewayBodyRes+cEtx
+//cStx=0x78、cEtx=0x79,各1字节
+//dwHeadLen、wBodyLen各4字节,网络序
+
+//client<=>MediaGateway:CS信令
+enum C2S_MEDIA_GATAWAY_CMD
+{
+	CMD_UNKNOWN							= 0x00;
+
+	//加入会议媒体
+	CMD_C2S_JOIN_MEETING_MEDIA_REQ		= 0x01;
+	CMD_C2S_JOIN_MEETING_MEDIA_RES		= 0x02;
+
+	//心跳
+	CMD_C2S_HELLO_REQ					= 0x03;
+	CMD_C2S_HELLO_RES					= 0x04;
+
+	//SDP协商,Client发送offer,Server回answer
+	CMD_C2S_SDP_REQ						= 0x05;
+	CMD_C2S_SDP_RES						= 0x06;
+
+	//Client主动拉取媒体广播
+	CMD_C2S_GET_MEDIA_BROADCAST_REQ		= 0x07;
+	CMD_C2S_GET_MEDIA_BROADCAST_RES		= 0x08;
+
+	//媒体后台媒体广播
+	CMD_S2C_MEDIA_BROADCAST_REQ			= 0x1001;
+	CMD_S2C_MEDIA_BROADCAST_RES			= 0x1002;
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// 包头定义
+////////////////////////////////////////////////////////////////////////////////
+message MediaGatewayHead
+{
+	//sdk id,填10000
+	optional uint32 uint32_sdkid                = 1;
+	//版本号,填1000,后续大版本+100,小版本+1
+	optional uint32 uint32_sdk_ver              = 2;
+	//包序列号,该序列号由客户端维护,回包需保持一致
+	optional uint32 uint32_seq					= 3;
+	//命令号,定义见C2S_MEDIA_GATAWAY_CMD
+	optional uint32 uint32_cmd					= 4;
+	//公司ID
+	optional uint32 uint32_crop_id				= 5;
+	//用户ID
+	optional string str_user_id                 = 6;
+	//会议ID
+	optional uint64 uint64_meeting_id			= 7;
+	//媒体网关token，注意meeting_id和token有绑定关系，不能混用
+	optional bytes bytes_media_gateway_token	= 8;
+
+	//保留
+	extensions 101 to 200;
+
+	//如果非0，为Res包错误码
+	optional uint32 uint32_error_code			= 201;
+	//如果非空,为Res错误字符串
+	optional string str_error_string			= 202;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// 包体定义
+////////////////////////////////////////////////////////////////////////////////
+
+//请求包体
+message MediaGatewayBodyReq
+{
+	optional JoinMeetingMediaReq		msg_join_meeting_media_req		= 1;
+	optional HelloReq					msg_hello_req					= 2;
+	optional SdpReq						msg_sdp_req						= 3;
+	optional S2CMediaBroadcastReq		msg_s2c_media_broadcast_req		= 4;
+	optional GetMediaBroadcastReq		msg_get_media_broadcast_req		= 5;
+}
+
+//返回包体
+message MediaGatewayBodyRes
+{
+	optional JoinMeetingMediaRes		msg_join_meeting_media_res		= 1;
+	optional HelloRes					msg_hello_res					= 2;
+	optional SdpRes						msg_sdp_res						= 3;
+	optional S2CMediaBroadcastRes		msg_s2c_media_broadcast_res		= 4;
+	optional GetMediaBroadcastRes		msg_get_media_broadcast_res		= 5;
+}
+
+message JoinMeetingMediaReq
+{
+	//OS版本号,如Android 7.0
+	optional string str_os_verion					= 1;
+	//设备名
+	optional string str_device_name                 = 2;
+	//显示设备名
+	optional string str_screen_name					= 11;
+	//显示设备宽
+	optional uint32 uint32_screen_width				= 12;
+	//显示设备高
+	optional uint32 uint32_screen_height			= 13;
+	//摄像头设备名
+	optional string str_camera_name					= 21;
+	//摄像头设备宽
+	optional uint32 uint32_camera_width             = 22;
+	//摄像头设备高
+	optional uint32 uint32_camera_height			= 23;
+	//扬声器设备名
+	optional string str_speaker_name				= 31;
+	//麦克风设备名
+	optional string str_mic_name					= 41;
+}
+
+message JoinMeetingMediaRes
+{
+
+}
+
+message HelloReq
+{
+	//后期可能会要客户端增加一些丢包、编解码卡顿等统计上报
+}
+
+message HelloRes
+{
+	//客户端公网IP
+	optional uint32 uint32_client_ip		= 1;
+	//客户端公网Port
+	optional uint32 uint32_client_port		= 2;
+	//下次心跳间隔,一般填2000,代表2000毫秒后心跳
+	optional uint32 uint32_interval			= 3;
+}
+
+message SdpReq
+{
+	optional string str_sdp_offer			= 1;
+}
+
+message SdpRes
+{
+	optional string str_sdp_answer			= 1;
+}
+
+message S2CMediaBroadcastReq
+{
+	optional string	str_sdp					= 1;
+}
+
+message S2CMediaBroadcastRes
+{
+}
+
+message GetMediaBroadcastReq
+{
+
+}
+
+message GetMediaBroadcastRes
+{
+	optional string	str_sdp					= 1;
+}
+
