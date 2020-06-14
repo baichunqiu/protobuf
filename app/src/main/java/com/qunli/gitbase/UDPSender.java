@@ -4,6 +4,9 @@ package com.qunli.gitbase;
 import android.os.SystemClock;
 import android.util.Log;
 
+import com.kit.Logger;
+
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -11,6 +14,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.zip.Inflater;
 
 public class UDPSender {
     private final static String TAG = "UDPSender";
@@ -24,6 +28,32 @@ public class UDPSender {
             b[i] = (byte) (n >> (24 - i * 8));
         }
         return b;
+    }
+
+    public static byte[] unZipByte(byte[] data) {
+        Inflater decompresser = new Inflater();
+        decompresser.setInput(data);
+        byte result[] = new byte[0];
+        ByteArrayOutputStream o = new ByteArrayOutputStream(1);
+        try {
+            byte[] buf = new byte[1024];
+            int got = 0;
+            while (!decompresser.finished()) {
+                got = decompresser.inflate(buf);
+                o.write(buf, 0, got);
+            }
+            result = o.toByteArray();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                o.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            decompresser.end();
+        }
+        return result;
     }
 
     private String serviece_host;
@@ -47,20 +77,42 @@ public class UDPSender {
                 byte[] rece_arr = new byte[1024 * 2];
                 dpReceive = new DatagramPacket(rece_arr, rece_arr.length);
                 try {
+                    Log.e(TAG, "receive 前 : ");
                     sendSocket.receive(dpReceive);
                     byte[] data = dpReceive.getData();
                     int len = dpReceive.getLength();
                     byte[] result = new byte[len];
                     System.arraycopy(data, 0, result, 0, len);
                     // 请求包（字节数组）：  0x78（起始）+ headLen+ bodyLen（int）+ head + BodyReq/BodyRes  + 0x79（结束）
-                    Log.e(TAG, "body : " + Signaturer.bytesToHex(result));
-                    if (result[0] == 0x78 && result[len - 1] == 0x79) {
+                    //cStx(0x80)+oriBodyLen+zipBodyLen+zipBody+cEtx(0x81)
+                    //zipBody解开之后，就是0x78开头0x79结尾的原始pb消息
+                    // 80 000002eb 00000173 789ccd903f4bc34018c683d02590c9c5f17012a4f5fee5ee927a4e2276295d9c43488ef6a0f943726dd351f01b3889a35fa050f07bf801045747671793a815b16e0edef41ccffb3eeffbfe2acbb20e2d6be77eefb10297e060f5fa70dbc1bb2430aa3410a200c3f6112e9e9eef6eaeae5fd667fbeb8ebdeacc2574ec4c262ad661300e8d5a844bb0a50fb890134c3cc608f5982708e70c0c866030a20021d14398f53cb7471128e5f13003469ba93a71ec486e2b726c2321a8278752472a986aa31c3b91731dab0c887a20b8381d0184715351983c0973bffe8173cce891d76cd418aa328d41c1ac487d32ce73bf0de8668556a9098dced2df176872a3bc9bccaa46972a8db374ba6c74a263bfcd2fcb22f2297405a78280280d13e5234a1172311290d5088887dc7e96ab54c712051f1e264cd41213ce3ef941f4336fa1633391080bd89f283d9e18c931ecb7170466992b89fe1792af135c4e18659ef757483679ef4808de10c1f41b91faf6e51bcc4ad0a6 81
+                    //len ：361 80 0000029f 0000015f 789ccd90bb4ac440148683ac4d20958de5c14a905de7964926eb5889b8cdb28d7508c9b03bb2b9b099bda4147c032bb1f40504df43f00d2c04b1b4b63189b020aed83ad519ce7ffef37f676559d681656d5dec3e567009fbf71f4fb7db648786469506211c12d43eeaf9cf6f773757d7ef0fa77baf1dfba5b390c8b17399aa4447e138326a1955b0610e5ce4514205e794092e7cea791c0643188c1860ecf730e13de1f61886521e0d7330da4cd5b163c77293c8b18d44506f8ea48e5538d54639762a173a5139f8f542383f190126a451cc4c91464550ffe08c7076289a444d43ad4cd360309f65011d1745d01a74f3995699898cceb3df0334be71d14de7aba62e5596e4d9b46aea542741eb5f96b33860c8f53de65388b3285501660c6397601ff1fa045460f7a772a913339198f8a83f517a3c31d223a8df660b4d552889ff172c5e23b81ee58c0bf137ec5af9054bc99a95b06fac3555f509e2a8be4081
+                    Log.e(TAG, "len ：" + result.length + " result : " + Signaturer.bytesToHex(result));
+                    if ((result[0] & 0xff) == 0x80 && (result[len - 1] & 0xff) == 0x81) {
+                        Logger.e("媒体广播");
+                        int oriLen = getLength(result, 1, 4);
+                        int zipLen = getLength(result, 5, 8);
+                        byte[] zipBody = new byte[zipLen];
+                        System.arraycopy(result, 9, zipBody, 0, zipLen);
+                        byte[] oriBody = unZipByte(zipBody);
+                        if (oriBody.length == oriLen) {
+                            Log.e(TAG, "oriLen : " + oriLen + " zipLen ：" + zipLen + " oriBody : " + Signaturer.bytesToHex(oriBody));
+                            result = oriBody;
+                            len = result.length;
+                        }else {
+                            Logger.e("解压失败！");
+                        }
+                    }
+                    Logger.e(TAG,"start = "+(result[0] & 0xff)+" end = "+(result[len - 1] & 0xff));
+                    if ((result[0] & 0xff) == 0x78 && (result[len - 1] & 0xff) == 0x79) {
                         int headLen = getLength(result, 1, 4);
                         int bodyLen = getLength(result, 5, 8);
                         byte[] header = new byte[headLen];
                         byte[] body = new byte[bodyLen];
                         System.arraycopy(result, 9, header, 0, headLen);
                         System.arraycopy(result, 9 + headLen, body, 0, bodyLen);
+                        Log.e(TAG, "headLen ：" + headLen + " bodyLen : " + bodyLen);
                         if (null != onReceiveListener) {
                             onReceiveListener.onReceive(header, body);
                         }
@@ -167,7 +219,7 @@ public class UDPSender {
             try {
                 sendQueue.put(data);
             } catch (InterruptedException e) {
-                Log.e(TAG, "send fail for exception： "+e.toString());
+                Log.e(TAG, "send fail for exception： " + e.toString());
             }
         }
     }
