@@ -1,13 +1,12 @@
 package com.qunli.gitbase;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 
-import com.bcq.protobuf.AddressBookProtos;
+import androidx.appcompat.app.AppCompatActivity;
+
 import com.bcq.protobuf.MideaCmd;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
